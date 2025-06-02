@@ -13,9 +13,9 @@ It checks for critical preconditions like kubelet version uniformity and control
 
 ## 🚀 Usage
 
-[condensed](./images/happy_case.png)
-[verbose](./images/unhappy_verbose.png)
-[help](./images/help)
+![help](./images/help.png)
+![condensed](./images/happy_case.png)
+![verbose](./images/unhappy_verbose.png)
 
 ```bash
 kubectl upgrade_readiness --target-version=v1.31
