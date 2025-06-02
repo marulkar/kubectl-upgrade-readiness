@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
+	"github.com/marulkar/kubectl-upgrade_readiness/internal/matrix"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +27,7 @@ func TestAddonMatrixCoverage(t *testing.T) {
 	for _, tc := range tests {
 		version := semver.MustParse(normalize(tc.k8sVersion))
 		key := "v" + version.String()[:4]
-		allowed, ok := versionedCompatMatrix[key][tc.addon]
+		allowed, ok := matrix.VersionedCompatMatrix[key][tc.addon]
 		if !ok {
 			t.Fatalf("Addon %s not found in matrix for %s", tc.addon, key)
 		}

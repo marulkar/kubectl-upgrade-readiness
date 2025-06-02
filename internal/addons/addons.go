@@ -5,78 +5,106 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/blang/semver/v4"
+	"github.com/marulkar/kubectl-upgrade_readiness/internal/kubelet"
+	"github.com/marulkar/kubectl-upgrade_readiness/internal/matrix"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-// versionedCompatMatrix unchanged – shortened for brevity (keep current content)
-var versionedCompatMatrix = map[string]map[string][]string{
-	"v1.28": {"etcd": {"3.5.6", "3.5.7", "3.5.8", "3.5.9"}, "coredns": {"1.10.0", "1.10.1"}, "metrics-server": {"0.6.0", "0.6.1"}, "kube-proxy": {"1.25.0", "1.26.0", "1.27.0", "1.28.0"}},
-	"v1.29": {"etcd": {"3.5.7", "3.5.8", "3.5.9", "3.5.10"}, "coredns": {"1.10.1", "1.11.0"}, "metrics-server": {"0.6.1", "0.6.2"}, "kube-proxy": {"1.26.0", "1.27.0", "1.28.0", "1.29.0"}},
-	"v1.30": {"etcd": {"3.5.9", "3.5.10", "3.5.11"}, "coredns": {"1.11.0", "1.11.1"}, "metrics-server": {"0.6.2", "0.7.0"}, "kube-proxy": {"1.27.0", "1.28.0", "1.29.0", "1.30.0"}},
-	"v1.31": {"etcd": {"3.5.10", "3.5.11", "3.5.12"}, "coredns": {"1.11.1", "1.12.0"}, "metrics-server": {"0.7.0"}, "kube-proxy": {"1.31.0", "1.30.0", "1.29.0", "1.28.0", "1.27.0"}},
-	"v1.32": {"etcd": {"3.5.11", "3.5.12", "3.5.13"}, "coredns": {"1.12.0"}, "metrics-server": {"0.7.0", "0.7.1"}, "kube-proxy": {"1.32.0", "1.31.0", "1.30.0", "1.29.0", "1.28.0"}},
-	"v1.33": {"etcd": {"3.5.13", "3.5.14"}, "coredns": {"1.12.0", "1.13.0"}, "metrics-server": {"0.7.1", "0.7.2"}, "kube-proxy": {"1.33.0", "1.32.0", "1.31.0", "1.30.0", "1.29.0"}},
-}
-
-var tagSuffixRE = regexp.MustCompile(`^v?([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
+var tagRegex = regexp.MustCompile(`^v?([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
 
 func CheckAddonCompatibility(cs *kubernetes.Clientset, target semver.Version, raw string) {
 	key := fmt.Sprintf("v%d.%d", target.Major, target.Minor)
-	matrix, ok := versionedCompatMatrix[key]
+	compatMatrix, ok := matrix.VersionedCompatMatrix[key]
 	if !ok {
 		fmt.Printf("\n[!] No compatibility data for %s\n", key)
 		return
 	}
 
-	fmt.Println("\nControl Plane Addon Compatibility:")
 	pods, err := cs.CoreV1().Pods("kube-system").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("Error listing kube-system pods: %v\n", err)
 		return
 	}
 
+	group := map[string]map[string][]string{}
+
 	for _, p := range pods.Items {
 		for _, c := range p.Spec.Containers {
-			img := c.Image
-			name, version := parseImage(img)
-			if name == "" || version == "" {
+			addon, ver := parseImage(c.Image)
+			if addon == "" || ver == "" {
 				continue
 			}
-			expect, tracked := matrix[name]
-			if !tracked {
+			if _, tracked := compatMatrix[addon]; !tracked {
 				continue
 			}
-			compliant := contains(expect, version)
-			if compliant {
-				fmt.Printf("  ✅ %s: %s\n", name, version)
-			} else {
-				fmt.Printf("  ❌ %s: %s (Expected: %v)\n", name, version, expect)
+			if _, ok := group[addon]; !ok {
+				group[addon] = map[string][]string{}
+			}
+			group[addon][ver] = append(group[addon][ver], p.Name)
+		}
+	}
+
+	if len(group) == 0 {
+		fmt.Println("\nControl Plane Addon Compatibility: <none found>")
+		return
+	}
+
+	fmt.Println("\nControl Plane Addon Compatibility:")
+
+	addons := make([]string, 0, len(group))
+	for a := range group {
+		addons = append(addons, a)
+	}
+	sort.Strings(addons)
+
+	for _, a := range addons {
+		versions := make([]string, 0, len(group[a]))
+		for v := range group[a] {
+			versions = append(versions, v)
+		}
+		sort.Strings(versions)
+
+		expected := compatMatrix[a]
+		for _, v := range versions {
+			pods := group[a][v]
+			compliant := contains(expected, v)
+			icon := "✅"
+			if !compliant {
+				icon = "❌"
+			}
+			fmt.Printf("  %s %s: %s (%d pods", icon, a, v, len(pods))
+			if !compliant {
+				fmt.Printf(", expected: %v", expected)
+			}
+			fmt.Println(")")
+
+			if kubelet.Verbose {
+				sort.Strings(pods)
+				for _, n := range pods {
+					fmt.Printf("    • %s\n", n)
+				}
 			}
 		}
 	}
 }
 
 func parseImage(ref string) (addon, ver string) {
-	// strip digest if present
-	before := ref
-	if idx := strings.IndexRune(ref, '@'); idx != -1 {
-		before = ref[:idx]
+	if i := strings.IndexRune(ref, '@'); i != -1 {
+		ref = ref[:i]
 	}
-
-	// tag after ':' if present
 	tag := ""
-	if idx := strings.LastIndex(before, ":"); idx != -1 {
-		tag = before[idx+1:]
-		before = before[:idx]
+	if i := strings.LastIndex(ref, ":"); i != -1 {
+		tag = ref[i+1:]
+		ref = ref[:i]
 	}
 
-	base := path.Base(before)
+	base := path.Base(ref)
 	lower := strings.ToLower(base)
-
 	switch {
 	case strings.Contains(lower, "kube-proxy"):
 		addon = "kube-proxy"
@@ -90,27 +118,24 @@ func parseImage(ref string) (addon, ver string) {
 		return "", ""
 	}
 
-	// If tag missing or non‑semver, try to pull version from basename suffix like kube-proxy_1_25_16
 	if tag == "" || !strings.Contains(tag, ".") {
 		if idx := strings.LastIndex(base, "_"); idx != -1 {
 			tag = strings.ReplaceAll(base[idx+1:], "_", ".")
 		}
 	}
-
 	if tag == "" {
 		return addon, ""
 	}
 
-	// normalise tag to x.y.z and strip suffixes
-	m := tagSuffixRE.FindStringSubmatch(tag)
+	m := tagRegex.FindStringSubmatch(tag)
 	if len(m) < 2 {
 		return addon, ""
 	}
-	v := m[1]
-	if strings.Count(v, ".") == 1 {
-		v += ".0"
+	ver = m[1]
+	if strings.Count(ver, ".") == 1 {
+		ver += ".0"
 	}
-	return addon, v
+	return
 }
 
 func contains(list []string, v string) bool {
