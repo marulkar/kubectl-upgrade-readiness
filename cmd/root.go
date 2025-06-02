@@ -18,25 +18,36 @@ var (
 	configFlags   *genericclioptions.ConfigFlags
 )
 
-// Parses CLI flags (including kubeconfig/context) and runs upgrade readiness checks.
+// Parses CLI flags (plugin only) and runs upgrade‑readiness checks.
 func Execute() {
 	configFlags = genericclioptions.NewConfigFlags(true)
 	configFlags.AddFlags(pflag.CommandLine)
 
-	pflag.StringVar(&targetVersion, "target-version", "v1.31", "Target Kubernetes version")
-	pflag.BoolVar(&kubelet.Verbose, "verbose", false, "Show full list of nodes per version")
+	pluginFlags := pflag.NewFlagSet("upgrade_readiness", pflag.ExitOnError)
+	pluginFlags.StringVarP(&targetVersion, "target-version", "t", "v1.31", "Target Kubernetes version")
+	pluginFlags.BoolVar(&kubelet.Verbose, "verbose", false, "Show full list of nodes per version")
+
+	pflag.CommandLine.AddFlagSet(pluginFlags)
+
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "kubectl upgrade_readiness validates kubelet skew and core‑addon compatibility before a Kubernetes version upgrade.\n\nUsage:\n")
+		pluginFlags.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\n(Advanced kubeconfig flags such as --kubeconfig and --context are accepted but hidden)\n")
+	}
+
 	pflag.Parse()
 
 	fmt.Printf("kubectl-upgrade-readiness: MVP (target: %s)\n", targetVersion)
 
 	v, err := semver.Parse(normalize(targetVersion))
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	cs, err := client.GetClientSet(configFlags)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
