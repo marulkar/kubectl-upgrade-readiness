@@ -34,19 +34,19 @@ var versionedCompatMatrix = map[string]map[string][]string{
 		"etcd":           {"3.5.10", "3.5.11", "3.5.12"},
 		"coredns":        {"1.11.1", "1.12.0"},
 		"metrics-server": {"0.7.0"},
-		"kube-proxy":     {"1.28.0", "1.29.0", "1.30.0", "1.31.0"},
+		"kube-proxy":     {"1.31.0", "1.30.0", "1.29.0", "1.28.0", "1.27.0"},
 	},
 	"v1.32": {
 		"etcd":           {"3.5.11", "3.5.12", "3.5.13"},
 		"coredns":        {"1.12.0"},
 		"metrics-server": {"0.7.0", "0.7.1"},
-		"kube-proxy":     {"1.29.0", "1.30.0", "1.31.0", "1.32.0"},
+		"kube-proxy":     {"1.32.0", "1.31.0", "1.30.0", "1.29.0", "1.28.0"},
 	},
 	"v1.33": {
 		"etcd":           {"3.5.13", "3.5.14"},
 		"coredns":        {"1.12.0", "1.13.0"},
 		"metrics-server": {"0.7.1", "0.7.2"},
-		"kube-proxy":     {"1.30.0", "1.31.0", "1.32.0", "1.33.0"},
+		"kube-proxy":     {"1.33.0", "1.32.0", "1.31.0", "1.30.0", "1.29.0"},
 	},
 }
 
@@ -65,39 +65,37 @@ func CheckAddonCompatibility(client *kubernetes.Clientset, target semver.Version
 		fmt.Printf("Error listing kube-system pods: %v\n", err)
 		return
 	}
+
 	for _, pod := range pods.Items {
 		for _, c := range pod.Spec.Containers {
 			img := c.Image
-			fmt.Printf("  %s => %s\n", pod.Name, img)
 			parts := strings.Split(img, ":")
 			name := path.Base(parts[0])
 			if len(parts) < 2 {
 				continue
 			}
 			tag := strings.TrimPrefix(parts[1], "v")
-			if strings.Contains(tag, "-") {
-				tag = strings.SplitN(tag, "-", 2)[0] // Drop suffix like "-0"
-			}
 			if strings.Count(tag, ".") == 1 {
 				tag += ".0"
 			}
+			cleanedTag := strings.SplitN(tag, "-", 2)[0]
 
-			// Only validate known addons
 			expected, known := validVersions[name]
 			if !known {
 				continue
 			}
 
-			// Check if the tag is one of the allowed versions
 			match := false
 			for _, v := range expected {
-				if v == tag {
+				if v == cleanedTag {
 					match = true
 					break
 				}
 			}
 			if !match {
-				fmt.Printf("    [!] %s version %s not compatible with Kubernetes %s\n", name, tag, versionKey)
+				fmt.Printf("  ❌ %s: %s (Expected: %v)\n", name, cleanedTag, expected)
+			} else {
+				fmt.Printf("  ✅ %s: %s\n", name, cleanedTag)
 			}
 		}
 	}
