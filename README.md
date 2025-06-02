@@ -39,7 +39,7 @@ mv kubectl-upgrade_readiness /usr/local/bin/
 ## 🚀 Usage
 
 ```bash
-kubectl upgrade_readiness --target-version=v1.28
+kubectl upgrade_readiness --target-version=v1.31
 ```
 
 Sample Output:
@@ -71,13 +71,11 @@ Requires only read access:
 
 ## 🧭 Roadmap
 
-* 🔜 API deprecation checks (live detection of deprecated resources)
-* JSON output for CI pipelines
 * Krew packaging
-
+* JSON output for CI pipelines
 
 ---
 
 ## 📄 License
 
-MIT
+[MIT](./LICENSE)
