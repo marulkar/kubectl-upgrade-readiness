@@ -24,6 +24,7 @@ func Execute() {
 	configFlags.AddFlags(pflag.CommandLine)
 
 	pflag.StringVar(&targetVersion, "target-version", "v1.31", "Target Kubernetes version")
+	pflag.BoolVar(&kubelet.Verbose, "verbose", false, "Show full list of nodes per version")
 	pflag.Parse()
 
 	fmt.Printf("kubectl-upgrade-readiness: MVP (target: %s)\n", targetVersion)

@@ -2,9 +2,7 @@ package kubelet
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/blang/semver/v4"
@@ -12,12 +10,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-var verbose = flag.Bool("verbose", false, "Show full list of nodes per version")
+// Verbose is set from cmd/root.go (--verbose flag)
+var Verbose bool
 
-// Validates kubelet versions across all nodes based on N-4 skew policy
+// CheckKubeletVersions groups nodes by version and reports N‑4 skew compliance.
 func CheckKubeletVersions(cs *kubernetes.Clientset, target semver.Version, raw string) {
-	flag.CommandLine.Parse(os.Args[1:])
-
 	nodes, err := cs.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("Error listing nodes: %v\n", err)
@@ -26,75 +23,80 @@ func CheckKubeletVersions(cs *kubernetes.Clientset, target semver.Version, raw s
 
 	type nodeGroup struct {
 		compliant bool
-		nodeNames []string
+		nodes     []string
 	}
 
-	skew := 4
-	nodeGroups := make(map[string]*nodeGroup)
+	const skew = 4
+	groups := map[string]*nodeGroup{}
 
 	for _, n := range nodes.Items {
-		verStr := n.Status.NodeInfo.KubeletVersion
-		v, err := semver.ParseTolerant(verStr)
+		vstr := n.Status.NodeInfo.KubeletVersion
+		v, err := semver.ParseTolerant(vstr)
 		if err != nil {
-			fmt.Printf("  [!] Unable to parse version for %s: %v\n", n.Name, err)
+			fmt.Printf("  [!] Parse error for %s: %v\n", n.Name, err)
 			continue
 		}
+		delta := int(target.Minor) - int(v.Minor)
+		ok := v.Major == target.Major && delta >= 0 && delta <= skew
 
-		minorDelta := int(target.Minor) - int(v.Minor)
-		compliant := v.Major == target.Major && minorDelta >= 0 && minorDelta <= skew
-
-		if _, ok := nodeGroups[verStr]; !ok {
-			nodeGroups[verStr] = &nodeGroup{compliant: compliant, nodeNames: []string{}}
+		g, exists := groups[vstr]
+		if !exists {
+			g = &nodeGroup{compliant: ok}
+			groups[vstr] = g
 		}
-		nodeGroups[verStr].nodeNames = append(nodeGroups[verStr].nodeNames, n.Name)
+		g.nodes = append(g.nodes, n.Name)
 	}
 
 	fmt.Printf("\nKubelet Version Skew Check (target: %s):\n\n", raw)
-	compliantVersions := []string{}
-	nonCompliantVersions := []string{}
 
-	for version, group := range nodeGroups {
-		if group.compliant {
-			compliantVersions = append(compliantVersions, version)
+	var good, bad []string
+	for v, g := range groups {
+		if g.compliant {
+			good = append(good, v)
 		} else {
-			nonCompliantVersions = append(nonCompliantVersions, version)
+			bad = append(bad, v)
 		}
 	}
+	sort.Strings(bad)
+	sort.Strings(good)
 
-	if len(nonCompliantVersions) > 0 {
-		fmt.Println("❌ Non-compliant versions:")
-		sort.Strings(nonCompliantVersions)
-		for _, v := range nonCompliantVersions {
-			group := nodeGroups[v]
-			fmt.Printf("  - %s (%d nodes)\n", v, len(group.nodeNames))
-			if *verbose {
-				for _, name := range group.nodeNames {
-					fmt.Printf("    • %s\n", name)
-				}
-			} else {
-				fmt.Printf("    Examples:\n")
-				sample := group.nodeNames
-				if len(sample) > 3 {
-					sample = sample[:3]
-				}
-				for _, name := range sample {
-					fmt.Printf("      • %s\n", name)
-				}
-				fmt.Println("    ... (use --verbose to see full list)")
-			}
+	if len(bad) > 0 {
+		fmt.Println("❌ Non‑compliant versions:")
+		for _, v := range bad {
+			g := groups[v]
+			fmt.Printf("  - %s (%d nodes)\n", v, len(g.nodes))
+			printExamples(g.nodes)
 		}
 		fmt.Println()
 	} else {
-		fmt.Println("✅ All nodes are compliant with kubelet skew policy.")
+		fmt.Println("✅ All nodes are compliant.")
 	}
 
-	if len(compliantVersions) > 0 {
+	if len(good) > 0 {
 		fmt.Println("✅ Compliant versions:")
-		sort.Strings(compliantVersions)
-		for _, v := range compliantVersions {
-			group := nodeGroups[v]
-			fmt.Printf("  - %s (%d nodes)\n", v, len(group.nodeNames))
+		for _, v := range good {
+			fmt.Printf("  - %s (%d nodes)\n", v, len(groups[v].nodes))
 		}
 		fmt.Println()
+	}
+}
+
+func printExamples(nodes []string) {
+	if Verbose {
+		for _, n := range nodes {
+			fmt.Printf("    • %s\n", n)
+		}
+		return
+	}
+	sample := nodes
+	if len(sample) > 3 {
+		sample = sample[:3]
+	}
+	fmt.Println("    Examples:")
+	for _, n := range sample {
+		fmt.Printf("      • %s\n", n)
+	}
+	if len(nodes) > 3 {
+		fmt.Println("    ... (use --verbose to see full list)")
 	}
 }
