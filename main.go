@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/marulkar/kubectl-upgrade-readiness/cmd"
+	"github.com/marulkar/kubectl-upgrade_readiness/cmd"
 )
 
 func main() {

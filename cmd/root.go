@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
-	"github.com/marulkar/kubectl-upgrade-readiness/internal/addons"
-	"github.com/marulkar/kubectl-upgrade-readiness/internal/client"
-	"github.com/marulkar/kubectl-upgrade-readiness/internal/kubelet"
+	"github.com/marulkar/kubectl-upgrade_readiness/internal/addons"
+	"github.com/marulkar/kubectl-upgrade_readiness/internal/client"
+	"github.com/marulkar/kubectl-upgrade_readiness/internal/kubelet"
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )

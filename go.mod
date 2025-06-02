@@ -1,4 +1,4 @@
-module github.com/marulkar/kubectl-upgrade-readiness
+module github.com/marulkar/kubectl-upgrade_readiness
 
 go 1.24.0
 
@@ -6,6 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/blang/semver/v4 v4.0.0
+	github.com/marulkar/kubectl-upgrade-readiness v0.0.0-20250602164852-cb13ac6ff74b
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
 	k8s.io/apimachinery v0.33.1

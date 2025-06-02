@@ -23,16 +23,16 @@ It checks for critical preconditions like kubelet version uniformity and control
 ## 📦 Installation
 
 ```bash
-go install github.com/marulkar/kubectl-upgrade-readiness@latest
+go install github.com/marulkar/kubectl-upgrade_readiness@latest
 ````
 
 After build, place the binary in your `$PATH`:
 
 ```bash
-mv kubectl-upgrade_readiness /usr/local/bin/
+mv ~/go/bin/kubectl-upgrade_readiness /usr/local/bin/kubectl-upgrade-readiness
 ```
 
-> ✅ Your plugin can now be used via `kubectl upgrade_readiness`.
+> ✅ Your plugin can now be used via `kubectl upgrade-readiness`.
 
 ---
 
