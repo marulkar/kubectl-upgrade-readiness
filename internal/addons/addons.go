@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
-	"github.com/marulkar/kubectl-upgrade_readiness/internal/kubelet"
 	"github.com/marulkar/kubectl-upgrade_readiness/internal/matrix"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -17,7 +16,7 @@ import (
 
 var tagRegex = regexp.MustCompile(`^v?([0-9]+\.[0-9]+(?:\.[0-9]+)?)`)
 
-func CheckAddonCompatibility(cs *kubernetes.Clientset, target semver.Version, raw string) {
+func CheckAddonCompatibility(cs *kubernetes.Clientset, target semver.Version, raw string, verbose bool) {
 	key := fmt.Sprintf("v%d.%d", target.Major, target.Minor)
 	compatMatrix, ok := matrix.VersionedCompatMatrix[key]
 	if !ok {
@@ -83,7 +82,7 @@ func CheckAddonCompatibility(cs *kubernetes.Clientset, target semver.Version, ra
 			}
 			fmt.Println(")")
 
-			if kubelet.Verbose {
+			if verbose {
 				sort.Strings(pods)
 				for _, n := range pods {
 					fmt.Printf("    • %s\n", n)

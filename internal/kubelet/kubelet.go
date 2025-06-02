@@ -10,11 +10,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// Verbose is set from cmd/root.go (--verbose flag)
-var Verbose bool
-
 // CheckKubeletVersions groups nodes by version and reports N‑4 skew compliance.
-func CheckKubeletVersions(cs *kubernetes.Clientset, target semver.Version, raw string) {
+func CheckKubeletVersions(cs *kubernetes.Clientset, target semver.Version, raw string, verbose bool) {
 	nodes, err := cs.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("Error listing nodes: %v\n", err)
@@ -65,7 +62,7 @@ func CheckKubeletVersions(cs *kubernetes.Clientset, target semver.Version, raw s
 		for _, v := range bad {
 			g := groups[v]
 			fmt.Printf("  - %s (%d nodes)\n", v, len(g.nodes))
-			printExamples(g.nodes)
+			printExamples(g.nodes, verbose)
 		}
 		fmt.Println()
 	} else {
@@ -75,14 +72,20 @@ func CheckKubeletVersions(cs *kubernetes.Clientset, target semver.Version, raw s
 	if len(good) > 0 {
 		fmt.Println("✅ Compliant versions:")
 		for _, v := range good {
-			fmt.Printf("  - %s (%d nodes)\n", v, len(groups[v].nodes))
+			g := groups[v]
+			fmt.Printf("  - %s (%d nodes)\n", v, len(g.nodes))
+			if verbose {
+				for _, n := range g.nodes {
+					fmt.Printf("    • %s\n", n)
+				}
+			}
 		}
 		fmt.Println()
 	}
 }
 
-func printExamples(nodes []string) {
-	if Verbose {
+func printExamples(nodes []string, verbose bool) {
+	if verbose {
 		for _, n := range nodes {
 			fmt.Printf("    • %s\n", n)
 		}

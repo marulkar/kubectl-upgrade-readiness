@@ -15,6 +15,7 @@ import (
 
 var (
 	targetVersion string
+	verbose       bool
 	configFlags   *genericclioptions.ConfigFlags
 )
 
@@ -25,7 +26,7 @@ func Execute() {
 
 	pluginFlags := pflag.NewFlagSet("upgrade_readiness", pflag.ExitOnError)
 	pluginFlags.StringVarP(&targetVersion, "target-version", "t", "v1.31", "Target Kubernetes version")
-	pluginFlags.BoolVar(&kubelet.Verbose, "verbose", false, "Show full list of nodes per version")
+	pluginFlags.BoolVar(&verbose, "verbose", false, "Show full list of nodes per version")
 
 	pflag.CommandLine.AddFlagSet(pluginFlags)
 
@@ -35,6 +36,7 @@ func Execute() {
 		fmt.Fprintf(os.Stderr, "\n(Advanced kubeconfig flags such as --kubeconfig and --context are accepted but hidden)\n")
 	}
 
+	pluginFlags.Parse(os.Args[1:])
 	pflag.Parse()
 
 	fmt.Printf("kubectl-upgrade-readiness: MVP (target: %s)\n", targetVersion)
@@ -51,8 +53,8 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	kubelet.CheckKubeletVersions(cs, v, targetVersion)
-	addons.CheckAddonCompatibility(cs, v, targetVersion)
+	kubelet.CheckKubeletVersions(cs, v, targetVersion, verbose)
+	addons.CheckAddonCompatibility(cs, v, targetVersion, verbose)
 }
 
 func normalize(v string) string {
