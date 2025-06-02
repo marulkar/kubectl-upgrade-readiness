@@ -45,7 +45,7 @@ kubectl upgrade_readiness --target-version=v1.28
 Sample Output:
 
 ```
-kubectl-upgrade-readiness: MVP Check (target: v1.28)
+kubectl-upgrade-readiness: MVP Check (target: v1.31)
 
 Kubelet Version Uniformity Check:
   node-a => kubelet v1.28.5
@@ -53,10 +53,10 @@ Kubelet Version Uniformity Check:
   [OK] All kubelets match the target version.
 
 Control Plane Addon Compatibility:
-  coredns-xxx => coredns:v1.9.3
-    [!] Consider upgrading CoreDNS to v1.10+ for v1.28 compatibility
-  metrics-server-yyy => metrics-server:v0.5.0
-    [!] Metrics-server is outdated for v1.28
+  ❌ coredns: 1.10.1 (Expected: [1.11.1 1.12.0])
+  ❌ coredns: 1.10.1 (Expected: [1.11.1 1.12.0])
+  ❌ etcd: 3.5.9 (Expected: [3.5.10 3.5.11 3.5.12])
+  ✅ kube-proxy: 1.28.0
 ```
 
 ---
